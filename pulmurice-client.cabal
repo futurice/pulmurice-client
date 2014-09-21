@@ -1,0 +1,31 @@
+name:                pulmurice-client
+version:             0.1.0.0
+synopsis:            Pulmurice client
+homepage:            https://github.com/futurice/pulmurice-client
+license:             MIT
+license-file:        LICENSE
+author:              Oleg Grenrus
+maintainer:          oleg.grenrus@iki.fi
+copyright:           Copyright © 2014 Futurice OY, Oleg Grenrus
+category:            Game
+build-type:          Simple
+extra-source-files:  README.md, .gitignore, .gitmodules
+cabal-version:       >=1.10
+
+executable pulmurice
+  default-language:    Haskell2010
+  hs-source-dirs:      src, pulmurice-common/src
+  main-is:             Main.hs
+  ghc-options:         -Wall
+  build-depends:       base >=4.6 && <5,
+                       http-types ==0.8.*,
+                       http-client ==0.3.*,
+                       template-haskell ==2.9.*,
+                       aeson ==0.8.*,
+                       text ==1.1.*,
+                       bytestring >=0.10 && <0.11,
+                       entropy >=0.3 && <0.4,
+                       base16-bytestring >=0.1 && <0.2,
+                       tf-random >=0.5 && <0.6,
+                       QuickCheck >=2.7 && <2.8,
+                       attoparsec >=0.12 && <0.13

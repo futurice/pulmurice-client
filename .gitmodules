@@ -1,0 +1,3 @@
+[submodule "pulmurice-common"]
+	path = pulmurice-common
+	url = git@github.com:futurice/pulmurice-common.git
