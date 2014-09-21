@@ -26,13 +26,13 @@ Client for *Pulmurice* programming challenge game.
 
     ```
     # Signup, you will receive an email with a token
-    cabal run pulmurice signup <teamname> <email-address>
+    cabal run signup <teamname> <email-address>
 
     # Fetch new puzzle, it should be auto-solved
-    cabal run pulmurice <token> new echo 10
+    cabal run <token> new echo 10
 
     # For more commands:
-    cabal run pulmurice help
+    cabal run help
     ```
 
 5. To solve other puzzle types, edit `src/Solver.hs`
