@@ -71,8 +71,8 @@ puzzles endPointHost = do
     _ -> handleRest resMsg
 
 listOpenPuzzles :: String -> Uniq -> IO ()
-listOpenPuzzles endPointHost token = do
-  resMsg <- sendMessage endPointHost $ ListReqMsg token
+listOpenPuzzles endPointHost teamToken = do
+  resMsg <- sendMessage endPointHost $ ListReqMsg teamToken
   case resMsg of
     ListResMsg ps -> do
       putStrLn $ "There are " ++ show (length ps) ++ " open puzzles"
@@ -82,18 +82,18 @@ listOpenPuzzles endPointHost token = do
 
 printPuzzle :: Uniq -> String -> Text -> String -> IO ()
 printPuzzle puzzleId name desc input = do
-      putStrLn "I Don't know how to solve the puzzle :("
-      putStrLn $ "Puzzle " ++ name ++ ": " ++ show puzzleId
-      putStrLn $ T.unpack desc
-      putStrLn "Input: "
-      putStrLn input
+  putStrLn "I don't know how to solve the puzzle :("
+  putStrLn $ "Puzzle " ++ name ++ ": " ++ show puzzleId
+  putStrLn $ T.unpack desc
+  putStrLn "Input: "
+  putStrLn input
 
 tryToSolve :: String -> Uniq -> Uniq -> String -> Text -> String -> IO ()
-tryToSolve endPointHost token puzzleId name desc input =
+tryToSolve endPointHost teamToken puzzleId name desc input =
   case solve name input of
     Nothing     -> printPuzzle puzzleId name desc input
     Just output -> do
-      resMsg <- sendMessage endPointHost $ SolveReqMsg token puzzleId output
+      resMsg <- sendMessage endPointHost $ SolveReqMsg teamToken puzzleId output
       case resMsg of
         SolveResMsg -> putStrLn $ "Puzzle " ++ name ++ " solved -- " ++ show puzzleId
         _ -> handleRest resMsg
@@ -119,6 +119,17 @@ solvePuzzle endPointHost teamToken puzzleId = do
     ShowResMsg _puzzleId name desc input -> tryToSolve endPointHost teamToken puzzleId name desc input
     _ -> handleRest resMsg
 
+solveAllPuzzles :: String -> Uniq -> String -> IO ()
+solveAllPuzzles endPointHost teamToken puzzleName = do
+  resMsg <- sendMessage endPointHost $ ListReqMsg teamToken
+  case resMsg of
+    ListResMsg ps -> forM_ ps $ \(puzzleId, puzzleName', _diff) -> do
+      putStrLn $ "Solving " ++ show puzzleId
+      if puzzleName == puzzleName'
+         then solvePuzzle endPointHost teamToken puzzleId
+         else putStrLn $ "  - skipped, is of type: " ++ puzzleName'
+    _ -> handleRest resMsg
+
 main :: IO ()
 main = do
   (endPointHost, cmd) <- parseOptions
@@ -131,3 +142,4 @@ main = do
     CmdNew token puzzleName difficulty -> newPuzzle endPointHost token puzzleName difficulty
     CmdShow token puzzleId             -> showPuzzle endPointHost token puzzleId
     CmdSolve token puzzleId            -> solvePuzzle endPointHost token puzzleId
+    CmdSolveAll token puzzleName       -> solveAllPuzzles endPointHost token puzzleName

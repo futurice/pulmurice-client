@@ -47,6 +47,7 @@ data Command = CmdHelp
              | CmdNew Uniq String Word16
              | CmdShow Uniq Uniq
              | CmdSolve Uniq Uniq
+             | CmdSolveAll Uniq String
 
 toBoundedIntegral :: (Integral a, Bounded a) => Integer -> a
 toBoundedIntegral integer
@@ -76,14 +77,15 @@ teamTokenOption teamToken = option fromString (short 't' <> long "team-token" <>
 
 parserCommand :: Maybe Uniq -> Parser Command
 parserCommand teamToken = subparser $ mconcat $ map simpleCommand
-  [ ("help",    pure CmdHelp,  "Show help")
-  , ("echo",    parserEcho,    "Ping the server")
-  , ("puzzles", parserPuzzles, "List all available puzzle types")
-  , ("signup",  parserSignup,  "Sign up")
-  , ("list",    parserList,    "List all open puzzle challenges")
-  , ("new",     parserNew,     "Request new puzzle challenge, will try to auto-solve")
-  , ("show",    parserShow,    "Show puzzle challenge")
-  , ("solve",   parserSolve,   "Solve puzzle challenge")
+  [ ("help",    pure CmdHelp,    "Show help")
+  , ("echo",    parserEcho,       "Ping the server")
+  , ("puzzles", parserPuzzles,    "List all available puzzle types")
+  , ("signup",  parserSignup,     "Sign up")
+  , ("list",    parserList,       "List all open puzzle challenges")
+  , ("new",     parserNew,        "Request new puzzle challenge, will try to auto-solve")
+  , ("show",    parserShow,       "Show puzzle challenge")
+  , ("solve",   parserSolve,      "Solve puzzle challenge")
+  , ("solve-all", parserSolveAll, "Solve all-puzzles of type")
   ] 
   where simpleCommand (cmd, parser, desc) = command cmd (info parser (progDesc desc))
         parserPuzzles        = pure CmdPuzzles
@@ -93,6 +95,7 @@ parserCommand teamToken = subparser $ mconcat $ map simpleCommand
         parserNew            = CmdNew <$> teamTokenOption teamToken <*> simpleStrArgument "puzzle-name" <*> word16Argument "difficulty"
         parserShow           = CmdShow <$> teamTokenOption teamToken <*> uniqArgument "puzzle-id"
         parserSolve          = CmdSolve <$> teamTokenOption teamToken <*> uniqArgument "puzzle-id"
+        parserSolveAll       = CmdSolveAll <$> teamTokenOption teamToken <*> simpleStrArgument "puzzle-name"
 
 parserHost :: String -> Parser String
 parserHost defaultHost = strOption $ mconcat
