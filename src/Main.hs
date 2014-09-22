@@ -18,6 +18,7 @@ import Control.Monad
 import Data.Aeson as A
 import Data.Maybe
 import Data.Text as T (Text, pack, unpack)
+import Data.Word
 import Network.HTTP.Client
 import Network.HTTP.Types.Method
 import System.Environment (getArgs)
@@ -122,9 +123,9 @@ tryToSolve token puzzleId name desc input =
         SolveResMsg -> putStrLn $ "Puzzle " ++ name ++ " solved -- " ++ show puzzleId
         _ -> handleRest resMsg
 
-newPuzzle :: String -> Int -> Uniq -> IO ()
+newPuzzle :: String -> Word16 -> Uniq -> IO ()
 newPuzzle name diff token = do
-  resMsg <- sendMessage $ NewReqMsg token name (abs diff)
+  resMsg <- sendMessage $ NewReqMsg token name diff
   case resMsg of
     NewResMsg puzzleId desc input -> tryToSolve token puzzleId name desc input
     _ -> handleRest resMsg
@@ -143,6 +144,18 @@ solvePuzzle token puzzleId = do
     ShowResMsg _puzzleId name desc input -> tryToSolve token puzzleId name desc input
     _ -> handleRest resMsg
 
+toBoundedIntegral :: (Integral a, Bounded a) => Integer -> a
+toBoundedIntegral integer
+  | integer < toInteger minB = minB
+  | integer > toInteger maxB = maxB
+  | otherwise                = fromIntegral integer
+  where maxB    = maxBound -- These forces types to unify
+        minB    = minBound
+
+
+readBoundedIntegral :: (Integral a, Bounded a) => String -> a
+readBoundedIntegral = toBoundedIntegral . read
+
 main :: IO ()
 main = do
   args <- getArgs
@@ -152,7 +165,7 @@ main = do
     [ _token, "puzzles" ]       -> puzzles
     [ "signup", team, email ]   -> signup (T.pack team) (T.pack email)
     [ token, "list" ]           -> withUniq token listOpenPuzzles
-    [ token, "new", name, diff] -> withUniq token $ newPuzzle name (read diff)
+    [ token, "new", name, diff] -> withUniq token $ newPuzzle name (readBoundedIntegral diff)
     [ token, "show", puzzleId]  -> withUniq token $ \t -> withUniq puzzleId $ \p -> showPuzzle t p
     [ token, "solve", puzzleId] -> withUniq token $ \t -> withUniq puzzleId $ \p -> solvePuzzle t p
     _ -> putStrLn help
