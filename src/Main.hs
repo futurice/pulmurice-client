@@ -11,70 +11,50 @@
 -- Pulmurice client.
 --
 ----------------------------------------------------------------------------
-module Main where
+module Main (main) where
 
 import Control.Applicative
 import Control.Monad
 import Data.Aeson as A
 import Data.Maybe
-import Data.Text as T (Text, pack, unpack)
+import Data.Text as T (Text, unpack)
 import Data.Word
 import Network.HTTP.Client
 import Network.HTTP.Types.Method
-import System.Environment (getArgs)
 import System.IO.Unsafe (unsafePerformIO)
 
 import Pulmurice.Common.Uniq
 import Pulmurice.Common.Message
 
+import Options
 import Solver
-
-endPointHost :: String
-endPointHost = "floating-plains-8402.herokuapp.com"
--- endPointHost = "localhost:8080"
-
-help :: String
-help = unlines
-  [ "pulmurice"
-  , ""
-  , "Available commands"
-  , "  - help"
-  , "  - signup <team-name> <email>              Create a new account"
-  , "  - [token] puzzles                         List different puzzle types"
-  , "  - <token> list                            List open puzzles"
-  , "  - <token> new <puzzle-name> <difficulty>  Creates new puzzle, tries to auto-solve"
-  , "  - <token> show <puzzle-hash>              Show the puzzle"
-  , "  - <token> solve <puzzle-hash>             Tries to solve the puzzle"
-  ]
 
 manager :: Manager
 manager = unsafePerformIO $ newManager defaultManagerSettings
 
-endPoint :: String
-endPoint = "http://" ++ endPointHost ++ "/api"
-
-sendMessage :: ReqMsg -> IO ResMsg
-sendMessage reqMsg = do
+sendMessage :: String -> ReqMsg -> IO ResMsg
+sendMessage endPointHost reqMsg = do
   initReq <- parseUrl endPoint
   let reqBody = RequestBodyLBS $ A.encode reqMsg
   let req = initReq { requestBody = reqBody, method = methodPost }
   body <- responseBody <$> httpLbs req manager
   return $ fromMaybe (ErrorResMsg "can't decode response message") (A.decode body)
+     where endPoint = "http://" ++ endPointHost ++ "/api"
 
 handleRest :: ResMsg -> IO ()
 handleRest (ErrorResMsg msg) = putStrLn $ "Error: " ++ msg
 handleRest resMsg            = putStrLn $ "Error: got unexpected message -- " ++ show resMsg
 
-echo :: Text -> IO ()
-echo message = do
- resMsg <- sendMessage $ EchoReqMsg message
+echo :: String -> Text -> IO ()
+echo endPointHost message = do
+ resMsg <- sendMessage endPointHost $ EchoReqMsg message
  case resMsg of
-   EchoResMsg message' -> putStrLn $ "Got: " ++ T.unpack message'
+   EchoResMsg message' -> putStrLn $ "Echo response: " ++ T.unpack message'
    _                   -> handleRest resMsg
 
-signup :: Text -> Text -> IO ()
-signup team email = do
-  resMsg <- sendMessage $ SignupReqMsg team email
+signup :: String -> Text -> Text -> IO ()
+signup endPointHost teamName email = do
+  resMsg <- sendMessage endPointHost $ SignupReqMsg teamName email
   case resMsg of
     SignupResMsg -> putStrLn "signup received, we will send a verification email shortly."
     _            -> handleRest resMsg
@@ -82,22 +62,17 @@ signup team email = do
 padLeft :: Int -> String -> String
 padLeft n str = str ++ replicate (max 0 $ n - length str) ' '
 
-puzzles :: IO ()
-puzzles = do
-  resMsg <- sendMessage PuzzlesReqMsg
+puzzles :: String -> IO ()
+puzzles endPointHost = do
+  resMsg <- sendMessage endPointHost PuzzlesReqMsg
   case resMsg of
     PuzzlesResMsg ps -> forM_ ps $ \(name, ingress) ->
       putStrLn $ padLeft 20 name ++ " " ++ T.unpack ingress
     _ -> handleRest resMsg
 
-withUniq :: String -> (Uniq -> IO ()) -> IO ()
-withUniq t action = case fromString t of
-                       Nothing    -> putStrLn "can't parse team token"
-                       Just token -> action token
-
-listOpenPuzzles :: Uniq -> IO ()
-listOpenPuzzles token = do
-  resMsg <- sendMessage $ ListReqMsg token
+listOpenPuzzles :: String -> Uniq -> IO ()
+listOpenPuzzles endPointHost token = do
+  resMsg <- sendMessage endPointHost $ ListReqMsg token
   case resMsg of
     ListResMsg ps -> do
       putStrLn $ "There are " ++ show (length ps) ++ " open puzzles"
@@ -113,59 +88,46 @@ printPuzzle puzzleId name desc input = do
       putStrLn "Input: "
       putStrLn input
 
-tryToSolve :: Uniq -> Uniq -> String -> Text -> String -> IO ()
-tryToSolve token puzzleId name desc input =
+tryToSolve :: String -> Uniq -> Uniq -> String -> Text -> String -> IO ()
+tryToSolve endPointHost token puzzleId name desc input =
   case solve name input of
     Nothing     -> printPuzzle puzzleId name desc input
     Just output -> do
-      resMsg <- sendMessage $ SolveReqMsg token puzzleId output
+      resMsg <- sendMessage endPointHost $ SolveReqMsg token puzzleId output
       case resMsg of
         SolveResMsg -> putStrLn $ "Puzzle " ++ name ++ " solved -- " ++ show puzzleId
         _ -> handleRest resMsg
 
-newPuzzle :: String -> Word16 -> Uniq -> IO ()
-newPuzzle name diff token = do
-  resMsg <- sendMessage $ NewReqMsg token name diff
+newPuzzle :: String -> Uniq -> String -> Word16 -> IO ()
+newPuzzle endPointHost teamToken puzzleName diff = do
+  resMsg <- sendMessage endPointHost $ NewReqMsg teamToken puzzleName diff
   case resMsg of
-    NewResMsg puzzleId desc input -> tryToSolve token puzzleId name desc input
+    NewResMsg puzzleId desc input -> tryToSolve endPointHost teamToken puzzleId puzzleName desc input
     _ -> handleRest resMsg
 
-showPuzzle :: Uniq -> Uniq -> IO ()
-showPuzzle token puzzleId = do
-  resMsg <- sendMessage $ ShowReqMsg token puzzleId
+showPuzzle :: String -> Uniq -> Uniq -> IO ()
+showPuzzle endPointHost teamToken puzzleId = do
+  resMsg <- sendMessage endPointHost $ ShowReqMsg teamToken puzzleId
   case resMsg of
     ShowResMsg _puzzleId name desc input -> printPuzzle puzzleId name desc input
     _ -> handleRest resMsg
 
-solvePuzzle :: Uniq -> Uniq -> IO ()
-solvePuzzle token puzzleId = do
-  resMsg <- sendMessage $ ShowReqMsg token puzzleId
+solvePuzzle :: String -> Uniq -> Uniq -> IO ()
+solvePuzzle endPointHost teamToken puzzleId = do
+  resMsg <- sendMessage endPointHost $ ShowReqMsg teamToken puzzleId
   case resMsg of
-    ShowResMsg _puzzleId name desc input -> tryToSolve token puzzleId name desc input
+    ShowResMsg _puzzleId name desc input -> tryToSolve endPointHost teamToken puzzleId name desc input
     _ -> handleRest resMsg
-
-toBoundedIntegral :: (Integral a, Bounded a) => Integer -> a
-toBoundedIntegral integer
-  | integer < toInteger minB = minB
-  | integer > toInteger maxB = maxB
-  | otherwise                = fromIntegral integer
-  where maxB    = maxBound -- These forces types to unify
-        minB    = minBound
-
-
-readBoundedIntegral :: (Integral a, Bounded a) => String -> a
-readBoundedIntegral = toBoundedIntegral . read
 
 main :: IO ()
 main = do
-  args <- getArgs
-  case args of
-    [ "echo", message ]         -> echo (T.pack message)
-    [ "puzzles" ]               -> puzzles
-    [ _token, "puzzles" ]       -> puzzles
-    [ "signup", team, email ]   -> signup (T.pack team) (T.pack email)
-    [ token, "list" ]           -> withUniq token listOpenPuzzles
-    [ token, "new", name, diff] -> withUniq token $ newPuzzle name (readBoundedIntegral diff)
-    [ token, "show", puzzleId]  -> withUniq token $ \t -> withUniq puzzleId $ \p -> showPuzzle t p
-    [ token, "solve", puzzleId] -> withUniq token $ \t -> withUniq puzzleId $ \p -> solvePuzzle t p
-    _ -> putStrLn help
+  (endPointHost, cmd) <- parseOptions
+  case cmd of
+    CmdEcho message                    -> echo endPointHost message
+    CmdHelp                            -> putStrLn helpString
+    CmdPuzzles                         -> puzzles endPointHost
+    CmdSignup teamName email           -> signup endPointHost teamName email
+    CmdList token                      -> listOpenPuzzles endPointHost token
+    CmdNew token puzzleName difficulty -> newPuzzle endPointHost token puzzleName difficulty
+    CmdShow token puzzleId             -> showPuzzle endPointHost token puzzleId
+    CmdSolve token puzzleId            -> solvePuzzle endPointHost token puzzleId
